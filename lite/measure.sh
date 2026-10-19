@@ -6,7 +6,7 @@ DUR="${1:-60}"
 OUT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/results"; mkdir -p "$OUT"
 F="$OUT/$(date +%Y%m%d-%H%M%S).csv"
 echo "proc,pid,rss_kb,pss_kb,private_kb" > "$F"
-for pat in "quickshell" "cava" "focus_daemon.py" "idle_helper.py"; do
+for pat in "quickshell.*quickshell/Shell.qml" "cava" "focus_daemon.py" "idle_helper.py"; do
   for pid in $(pgrep -f "$pat"); do
     s="/proc/$pid/smaps_rollup"; [ -r "$s" ] || continue
     rss=$(awk '/^Rss:/{print $2}' "$s"); pss=$(awk '/^Pss:/{print $2}' "$s")
@@ -14,7 +14,7 @@ for pat in "quickshell" "cava" "focus_daemon.py" "idle_helper.py"; do
     echo "$pat,$pid,$rss,$pss,$priv" >> "$F"
   done
 done
-qs=$(pgrep -f "quickshell.*Shell.qml" | head -1)
+qs=$(pgrep -f "quickshell.*quickshell/Shell.qml" | head -1)
 if [ -n "$qs" ]; then
   t0=$(awk '{print $14+$15}' /proc/$qs/stat); sleep "$DUR"; t1=$(awk '{print $14+$15}' /proc/$qs/stat)
   echo "quickshell idle CPU over ${DUR}s: $(( (t1-t0) * 100 / $(getconf CLK_TCK) / DUR ))% of one core (approx)" | tee -a "$F.cpu.txt"
