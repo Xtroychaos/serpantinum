@@ -17,6 +17,6 @@ done
 qs=$(pgrep -f "quickshell.*quickshell/Shell.qml" | head -1)
 if [ -n "$qs" ]; then
   t0=$(awk '{print $14+$15}' /proc/$qs/stat); sleep "$DUR"; t1=$(awk '{print $14+$15}' /proc/$qs/stat)
-  echo "quickshell idle CPU over ${DUR}s: $(( (t1-t0) * 100 / $(getconf CLK_TCK) / DUR ))% of one core (approx)" | tee -a "$F.cpu.txt"
+  awk -v a="$t0" -v b="$t1" -v hz="$(getconf CLK_TCK)" -v d="$DUR" 'BEGIN{printf "quickshell CPU over %ss: %.2f%% of one core\n", d, (b-a)*100/hz/d}' | tee -a "$F.cpu.txt"
 fi
 echo "wrote $F"

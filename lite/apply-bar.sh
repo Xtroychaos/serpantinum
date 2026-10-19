@@ -24,7 +24,8 @@ case "${1:-}" in
     jq --slurpfile old "$BAK" '.bar = $old[0].bar | if .bar == null then del(.bar) else . end' "$CFG" > "$tmp"
     jq -e . "$tmp" >/dev/null
     mv "$tmp" "$CFG"
-    echo "restored bar section of $CFG from $BAK"
+    rm -f "$BAK"   # next apply takes a fresh backup
+    echo "restored bar section of $CFG (backup removed)"
     ;;
   *) echo "usage: $0 apply|revert"; exit 1 ;;
 esac
