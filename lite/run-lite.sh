@@ -13,12 +13,24 @@ command -v quickshell >/dev/null 2>&1 || { echo "quickshell not found in PATH; n
 STATE="${XDG_RUNTIME_DIR:-/tmp}/serpantinum-lite"
 mkdir -p "$STATE"
 OMARCHY_SHELL_PATTERN='quickshell.* -p /usr/share/omarchy/shell'
+OMARCHY_LAUNCHER=/usr/share/omarchy/bin/omarchy-launch-shell
 
-# Omarchy 4 runs its bar/notifications as a Quickshell instance. Remember its exact command line
-# so recover.sh can start it again, then stop it so the two shells don't fight over bars and notifications.
+# Omarchy 4 runs its bar/notifications as a Quickshell instance, supervised by omarchy-launch-shell
+# (it relaunches the shell if it is killed). Stop the supervisor first: on SIGTERM it stops the shell
+# and exits cleanly. recover.sh starts the launcher again.
+if pgrep -f "bash $OMARCHY_LAUNCHER" >/dev/null 2>&1; then
+  echo "stopping Omarchy shell launcher"
+  touch "$STATE/omarchy-launcher-stopped"
+  pkill -TERM -f "bash $OMARCHY_LAUNCHER"
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    pgrep -f "$OMARCHY_SHELL_PATTERN" >/dev/null 2>&1 || break
+    sleep 0.3
+  done
+fi
+# If the shell is still there (no launcher, or it ignored SIGTERM), stop it directly.
 for pid in $(pgrep -f "$OMARCHY_SHELL_PATTERN"); do
-  tr '\0' ' ' < "/proc/$pid/cmdline" > "$STATE/omarchy-shell.cmd" 2>/dev/null
   echo "stopping Omarchy shell (pid $pid)"
+  touch "$STATE/omarchy-launcher-stopped"
   kill "$pid"
 done
 
