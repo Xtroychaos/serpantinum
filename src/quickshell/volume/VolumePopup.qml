@@ -98,11 +98,53 @@ Item {
         return ThemeBackend.green;
     }
 
+    readonly property string pinnedKey: {
+        const v = Config.getSetting("volume.pinnedApps", []);
+        return Array.isArray(v) ? v.join("\n") : "";
+    }
+    readonly property var pinnedList: pinnedKey === "" ? [] : pinnedKey.split("\n")
+
+    function appKey(node) {
+        return (Audio.getNodeAppName(node) || "").toLowerCase();
+    }
+
+    function isPinned(node) {
+        return window.pinnedList.indexOf(window.appKey(node)) !== -1;
+    }
+
+    function togglePin(node) {
+        const key = window.appKey(node);
+        if (!key) return;
+        let list = window.pinnedList.slice();
+        const i = list.indexOf(key);
+        if (i === -1) list.push(key);
+        else list.splice(i, 1);
+        Config.setSetting("volume.pinnedApps", list);
+    }
+
+    readonly property var sortedApps: {
+        const pins = window.pinnedList;
+        const rank = (n) => {
+            const i = pins.indexOf(window.appKey(n));
+            return i === -1 ? pins.length : i;
+        };
+        return Audio.apps.slice().sort((a, b) => rank(a) - rank(b));
+    }
+
+    property int selectedAppId: -1
+
+    readonly property PwNode selectedApp: {
+        for (const n of window.sortedApps) {
+            if (n.id === window.selectedAppId) return n;
+        }
+        return window.sortedApps.length > 0 ? window.sortedApps[0] : null;
+    }
+
     readonly property PwNode activeNode: {
         if (window.activeTab === "inputs") {
             return Audio.defaultSource || (Audio.inputs.length > 0 ? Audio.inputs[0] : null);
         } else if (window.activeTab === "apps") {
-            return Audio.apps.length > 0 ? Audio.apps[0] : null;
+            return window.selectedApp;
         } else {
             return Audio.defaultSink || (Audio.outputs.length > 0 ? Audio.outputs[0] : null);
         }
@@ -116,7 +158,7 @@ Item {
 
     readonly property string activeDesc: {
         if (!activeNode) return "";
-        if (activeTab === "apps") return I18n.t("volumepopup.master_output_volume");
+        if (activeTab === "apps") return Audio.getNodeSubDesc(activeNode);
         return Audio.getNodeSubDesc(activeNode);
     }
 
@@ -523,7 +565,7 @@ Item {
                             SpringAnimation { property: "y"; spring: 3; damping: 0.2; mass: 0.2 }
                         }
 
-                        model: window.activeTab === "outputs" ? Audio.outputs : (window.activeTab === "inputs" ? Audio.inputs : Audio.apps)
+                        model: window.activeTab === "outputs" ? Audio.outputs : (window.activeTab === "inputs" ? Audio.inputs : window.sortedApps)
 
                         Item {
                             width: contentList.width; height: contentList.height
@@ -572,6 +614,8 @@ Item {
                                 }
                             }
 
+                            readonly property bool isSelectedApp: window.activeTab === "apps" && node === window.selectedApp
+
                             height: isActiveNode ? window.s(52) : window.s(88)
                             Behavior on height { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
 
@@ -582,11 +626,11 @@ Item {
 
                             radius: ThemeBackend.borderRadius
 
-                            property bool isHovered: cardMa.containsMouse && !isActiveNode
+                            property bool isHovered: cardMa.containsMouse && !isActiveNode && !isSelectedApp
 
                             color: delegateGlass.active ? "transparent" : (isActiveNode ? window.tabColor : (isHovered ? ThemeBackend.surface1 : ThemeBackend.surface0))
-                            border.color: isActiveNode ? window.tabColor : ThemeBackend.surface1
-                            border.width: delegateGlass.active ? 0 : (isActiveNode ? 2 : 1)
+                            border.color: (isActiveNode || isSelectedApp) ? window.tabColor : ThemeBackend.surface1
+                            border.width: delegateGlass.active ? 0 : ((isActiveNode || isSelectedApp) ? 2 : 1)
                             Behavior on border.color { ColorAnimation { duration: 300 } }
                             Behavior on color { ColorAnimation { duration: 300 } }
 
@@ -604,10 +648,12 @@ Item {
                             MouseArea {
                                 id: cardMa
                                 anchors.fill: parent
-                                hoverEnabled: window.activeTab !== "apps"
-                                cursorShape: window.activeTab !== "apps" ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
                                 onClicked: {
-                                    if (window.activeTab !== "apps" && !delegateRoot.isActiveNode) {
+                                    if (window.activeTab === "apps") {
+                                        window.selectedAppId = delegateRoot.node ? delegateRoot.node.id : -1;
+                                    } else if (!delegateRoot.isActiveNode) {
                                         if (window.activeTab === "outputs") Audio.setDefaultOutput(delegateRoot.node);
                                         else if (window.activeTab === "inputs") Audio.setDefaultInput(delegateRoot.node);
                                     }
@@ -653,6 +699,19 @@ Item {
                                             color: isActiveNode && !delegateGlass.active ? Qt.darker(ThemeBackend.crust, 1.5) : ThemeBackend.subtext0
                                             text: isActiveNode ? I18n.t("volumepopup.active_default") : delegateRoot.nodeNameStr
                                         }
+                                    }
+
+                                    IconButton {
+                                        visible: window.activeTab === "apps"
+                                        Layout.alignment: Qt.AlignVCenter
+                                        size: window.s(24)
+                                        cornerRadius: window.s(8)
+                                        readonly property bool pinned: window.isPinned(delegateRoot.node)
+                                        buttonIcon: "󰐃"
+                                        iconFontSize: window.s(14)
+                                        accentColor: ThemeBackend.surface1
+                                        textColor: pinned ? window.tabColor : (isHoveredOrHighlighted ? ThemeBackend.text : ThemeBackend.overlay0)
+                                        onClicked: window.togglePin(delegateRoot.node)
                                     }
                                 }
 
