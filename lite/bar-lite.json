@@ -1,0 +1,12 @@
+{
+  "position": "top",
+  "style": "fill",
+  "time": { "format": "HH:mm" },
+  "timeShowDate": false,
+  "workspacesStyle": "pills",
+  "modules": {
+    "left": ["left", "workspaces"],
+    "center": ["timedate", "media"],
+    "right": [["wifi", "bt", "vol", "bat"]]
+  }
+}
